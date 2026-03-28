@@ -147,6 +147,16 @@ def chat():
         "source": "chat"
     })
 
+    # Forward every incoming chat message to Telegram so staff can see the full conversation,
+    # not just lead-form submissions or messages containing both name and phone.
+    send_telegram_notification(
+        f"💬 Chat Message\n\n"
+        f"🕒 {timestamp}\n"
+        f"👤 {contact.get('name') or 'Unknown'}\n"
+        f"📞 {contact.get('phone') or 'Not provided'}\n"
+        f"📝 {user_message}"
+    )
+
     if contact["name"] and contact["phone"]:
         lead_record = {
             "timestamp": timestamp,
