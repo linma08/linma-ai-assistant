@@ -11,6 +11,7 @@ app = Flask(__name__)
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+GOOGLE_SHEETS_WEBHOOK_URL = os.environ.get("GOOGLE_SHEETS_WEBHOOK_URL")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -110,6 +111,17 @@ def send_telegram_notification(message: str) -> None:
     except Exception as e:
         print(f"Telegram notification failed: {e}")
 
+def send_to_google_sheets(payload: dict) -> None:
+    if not GOOGLE_SHEETS_WEBHOOK_URL:
+        print("Google Sheets logging skipped: missing webhook URL.")
+        return
+
+    try:
+        response = requests.post(GOOGLE_SHEETS_WEBHOOK_URL, json=payload, timeout=10)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"Google Sheets error: {e}")
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -125,6 +137,15 @@ def chat():
 
     contact = extract_contact_info(user_message)
     saved_lead = False
+
+    # Save every incoming chat message to Google Sheets
+    send_to_google_sheets({
+        "timestamp": timestamp,
+        "name": contact.get("name") or "",
+        "phone": contact.get("phone") or "",
+        "message": user_message,
+        "source": "chat"
+    })
 
     if contact["name"] and contact["phone"]:
         lead_record = {
@@ -205,6 +226,14 @@ def lead():
         f"[{timestamp}] PHONE: {phone}\n"
         f"[{timestamp}] REASON: {reason if reason else '(none)'}\n"
     )
+
+    send_to_google_sheets({
+        "timestamp": timestamp,
+        "name": name,
+        "phone": phone,
+        "message": reason,
+        "source": "form"
+    })
 
     send_telegram_notification(
         f"📋 New Appointment Request\n\n"
